@@ -1,6 +1,7 @@
 import Foundation
 import whisper_cpp
 
+@available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
 public class Whisper : ObservableObject {
 
     @Published private var queue: [(any WhisperDelegate, URL, (URL) -> [Float])] = []
@@ -20,16 +21,6 @@ public class Whisper : ObservableObject {
     internal var cancelCallback: (() -> Void)?
 
     public init(fromFileURL fileURL: URL, withParams params: WhisperParams = .default) {
-        let context = whisper_init_from_file_with_params(path, params)
-        if let context {
-            return WhisperContext(context: context)
-        } else {
-            print("Couldn't load model at \(path)")
-            throw WhisperError.couldNotInitializeContext
-        }
-    }
-    
-    public init(fromFileURL fileURL: URL, withParams params: WhisperParams = .default) throws {
         self.whisperContext = fileURL.relativePath.withCString { whisper_init_from_file($0) }
         self.params = params
     }
