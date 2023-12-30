@@ -1,7 +1,14 @@
 import Foundation
 import whisper_cpp
 
-public class Whisper {
+public class Whisper : ObservableObject {
+
+    @Published private var queue: [(any WhisperDelegate, URL, (URL) -> [Float])] = []
+
+    public var urls: [URL] { queue.map { $0.1 } }
+
+    public var transcriptions: [any WhisperDelegate] { queue.map { $0.0 } }
+    
     private let whisperContext: OpaquePointer
     private var unmanagedSelf: Unmanaged<Whisper>?
 
@@ -13,13 +20,22 @@ public class Whisper {
     internal var cancelCallback: (() -> Void)?
 
     public init(fromFileURL fileURL: URL, withParams params: WhisperParams = .default) {
+        let context = whisper_init_from_file_with_params(path, params)
+        if let context {
+            return WhisperContext(context: context)
+        } else {
+            print("Couldn't load model at \(path)")
+            throw WhisperError.couldNotInitializeContext
+        }
+    }
+    
+    public init(fromFileURL fileURL: URL, withParams params: WhisperParams = .default) throws {
         self.whisperContext = fileURL.relativePath.withCString { whisper_init_from_file($0) }
         self.params = params
     }
 
     public init(fromData data: Data, withParams params: WhisperParams = .default) {
         var copy = data // Need to copy memory so we can gaurentee exclusive ownership over pointer
-
         self.whisperContext = copy.withUnsafeMutableBytes { whisper_init_from_buffer($0.baseAddress!, data.count) }
         self.params = params
     }
@@ -174,7 +190,7 @@ public class Whisper {
 
         cancelCallback = completionHandler
     }
-
+    
     @available(iOS 13, macOS 10.15, watchOS 6.0, tvOS 13.0, *)
     public func transcribe(audioFrames: [Float]) async throws -> [Segment] {
         return try await withCheckedThrowingContinuation { cont in
